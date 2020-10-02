@@ -1,6 +1,8 @@
-const { GraphQLServer } = require('graphql-yoga');
+const { GraphQLServer, PubSub } = require('graphql-yoga');
+const { v4: uuidv4} = require('uuid');
 
 const  messages = [];
+
 const typeDefs = `
     type Message {
         id: ID!
@@ -15,7 +17,14 @@ const typeDefs = `
     type Mutation {
         postMessage(user: String!, content: String!): ID!
     }
+
+    type Subscription {
+        messages: [Message!]
+    }
 `;
+
+const subscribers = [];
+const onMessageUpdates = (fn) => subscribers.push(fn);
 
 const resolvers = {
     Query:{
@@ -25,11 +34,28 @@ const resolvers = {
         postMessage: (parent, {user, content}) => {
            const id = messages.length;
            messages.push({id, user, content});
+           subscribers.forEach(fn => fn());
            return id;
+        }
+    },
+    Subscription: {
+        messages:{
+            subscribe: (parent, args, { pubsub }) => {
+                const channel = uuidv4();
+                
+                onMessageUpdates(() => pubsub.publish(channel, { messages }));
+                
+                setTimeout(()=> pubsub.publish(channel, {messages}), 0);
+                
+                return pubsub.asyncIterator(channel);
+            }
         }
     }
 };
-const server =  new GraphQLServer({typeDefs, resolvers});
+const pubsub = new PubSub();
+const server =  new GraphQLServer({typeDefs, resolvers, context: {pubsub}});
+
 server.start(({port}) => {
+    console.clear();
     console.log(`Server on http://localhost:${port}`)
 });
