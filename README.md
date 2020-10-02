@@ -1,1 +1,1 @@
-## CHAT com NodeJS, GraphQL, Websocket
+## CHAT com ReactJS, GraphQL
